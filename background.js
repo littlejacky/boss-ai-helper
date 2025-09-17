@@ -1,3 +1,5 @@
+//background.js
+
 // 创建右键菜单
 chrome.runtime.onInstalled.addListener(() => {
   // 先创建父菜单
@@ -24,9 +26,27 @@ async function initDefaultConfig() {
   if (!result.projects) {
     await chrome.storage.sync.set({
       projects: [
-        { id: 'communication', name: '沟通执行力', prompt: '重点评估候选人的沟通能力和执行力' },
-        { id: 'data', name: '数据分析', prompt: '重点评估候选人的数据分析和Excel技能' },
-        { id: 'management', name: '团队管理', prompt: '重点评估候选人的管理能力和行业经验' }
+        { 
+          id: 'communication', 
+          name: '沟通执行力', 
+          prompt: '重点评估候选人的沟通能力和执行力',
+          downloadTemplate: '【沟通执行力岗位】候选人简历_${name}_${experience}年经验',
+          formatPrompt: '请整理为标准简历格式，去除联系方式和期望薪资，突出沟通能力和执行力相关经验'
+        },
+        { 
+          id: 'data', 
+          name: '数据分析', 
+          prompt: '重点评估候选人的数据分析和Excel技能',
+          downloadTemplate: '【数据分析岗位】候选人简历_${name}_${skills}',
+          formatPrompt: '请整理为标准简历格式，去除联系方式和期望薪资，突出数据分析和Excel技能相关经验'
+        },
+        { 
+          id: 'management', 
+          name: '团队管理', 
+          prompt: '重点评估候选人的管理能力和行业经验',
+          downloadTemplate: '【团队管理岗位】候选人简历_${name}_${title}',
+          formatPrompt: '请整理为标准简历格式，去除联系方式和期望薪资，突出管理经验和团队领导能力'
+        }
       ]
     });
   }

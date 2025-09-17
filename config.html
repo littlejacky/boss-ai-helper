@@ -1,74 +1,170 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boss直聘AI助手 - 配置</title>
   <style>
     body {
-      width: 400px;
-      padding: 20px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+      width: 450px;
+      min-height: 500px;
     }
+    
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
     .section {
-      margin-bottom: 20px;
-      padding: 15px;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
+      margin-bottom: 24px;
     }
-    .section h3 {
-      margin: 0 0 10px 0;
+    
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
       color: #333;
+      border-bottom: 2px solid #1890ff;
+      padding-bottom: 4px;
     }
-    input, textarea, select {
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .form-group input, .form-group textarea {
       width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
+      padding: 8px 12px;
+      border: 1px solid #d9d9d9;
       border-radius: 4px;
-      margin-bottom: 10px;
       font-size: 14px;
+      box-sizing: border-box;
     }
-    button {
+    
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #1890ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    }
+    
+    .project-item {
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 12px;
+      background: #fafafa;
+      position: relative;
+    }
+    
+    .project-item .delete-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #ff4d4f;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .project-item .delete-btn:hover {
+      background: #ff7875;
+    }
+    
+    .project-item input, .project-item textarea {
+      margin-bottom: 8px;
+    }
+    
+    .btn {
       background: #1890ff;
       color: white;
       border: none;
-      padding: 8px 16px;
       border-radius: 4px;
+      padding: 10px 20px;
       cursor: pointer;
+      font-size: 14px;
       margin-right: 8px;
     }
-    button:hover {
-      background: #1760cc;
+    
+    .btn:hover {
+      background: #40a9ff;
     }
-    .project-item {
-      border: 1px solid #f0f0f0;
-      padding: 10px;
-      margin-bottom: 8px;
-      border-radius: 4px;
+    
+    .btn-outline {
+      background: white;
+      color: #1890ff;
+      border: 1px solid #1890ff;
     }
-    .delete-btn {
-      background: #ff4d4f;
+    
+    .btn-outline:hover {
+      background: #f0f8ff;
+    }
+    
+    .actions {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e8e8e8;
+    }
+
+    .form-help {
       font-size: 12px;
-      padding: 4px 8px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .template-vars {
+      font-size: 11px;
+      color: #666;
+      background: #f9f9f9;
+      padding: 6px;
+      border-radius: 3px;
+      margin-top: 4px;
     }
   </style>
 </head>
 <body>
-  <h2>Boss直聘AI助手 - 配置</h2>
-  
-  <div class="section">
-    <h3>API配置</h3>
-    <input type="text" id="apiEndpoint" placeholder="API端点">
-    <input type="text" id="apiModel" placeholder="模型名称">
-    <input type="password" id="apiKey" placeholder="API密钥">
-  </div>
+  <div class="container">
+    <div class="section">
+      <div class="section-title">API配置</div>
+      <div class="form-group">
+        <label for="apiEndpoint">API端点</label>
+        <input type="text" id="apiEndpoint" placeholder="https://api.openai.com/v1/chat/completions">
+      </div>
+      <div class="form-group">
+        <label for="apiModel">模型</label>
+        <input type="text" id="apiModel" placeholder="gpt-3.5-turbo">
+      </div>
+      <div class="form-group">
+        <label for="apiKey">API密钥</label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+      </div>
+    </div>
 
-  <div class="section">
-    <h3>分析项目</h3>
-    <div id="projectList"></div>
-    <button id="addProject">添加项目</button>
-  </div>
+    <div class="section">
+      <div class="section-title">分析项目</div>
+      <div id="projectList"></div>
+      <button class="btn btn-outline" id="addProject">添加项目</button>
+    </div>
 
-  <div style="text-align: right; margin-top: 20px;">
-    <button id="saveConfig">保存配置</button>
+    <div class="actions">
+      <button class="btn" id="saveConfig">保存配置</button>
+    </div>
   </div>
 
   <script src="config.js"></script>

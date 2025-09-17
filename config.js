@@ -1,3 +1,5 @@
+// config.js
+
 // 默认API配置（不含apiKey，apiKey需用户手动填写）
 const DEFAULT_API_CONFIG = {
   endpoint: 'https://ai.maxitai.cn/v1/chat/completions',
@@ -26,9 +28,25 @@ function renderProjects(projects) {
     const div = document.createElement('div');
     div.className = 'project-item';
     div.innerHTML = `
-      <input type="text" value="${project.name}" data-field="name" data-index="${index}" placeholder="项目名称">
-      <textarea data-field="prompt" data-index="${index}" placeholder="分析提示词" rows="3">${project.prompt}</textarea>
       <button class="delete-btn" data-index="${index}">删除</button>
+      <div class="form-group">
+        <label>项目名称</label>
+        <input type="text" data-field="name" value="${project.name || ''}" placeholder="如：数据分析岗位">
+      </div>
+      <div class="form-group">
+        <label>分析提示词</label>
+        <textarea data-field="prompt" rows="3" placeholder="重点评估候选人的...">${project.prompt || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>下载文件名模板</label>
+        <input type="text" data-field="downloadTemplate" value="${project.downloadTemplate || ''}" placeholder="【项目名】候选人简历_\${name}_\${experience}年经验">
+        <div class="template-vars">可用变量：\${name}(姓名), \${experience}(经验), \${title}(职位), \${skills}(技能), \${education}(学历), \${age}(年龄)</div>
+      </div>
+      <div class="form-group">
+        <label>简历格式化提示词</label>
+        <textarea data-field="formatPrompt" rows="2" placeholder="请整理为标准简历格式，去除联系方式和期望薪资...">${project.formatPrompt || ''}</textarea>
+        <div class="form-help">用于生成下载版本简历的格式化要求</div>
+      </div>
     `;
     container.appendChild(div);
   });
@@ -46,10 +64,14 @@ async function saveConfig() {
   const projects = Array.from(projectItems).map((item, index) => {
     const name = item.querySelector('[data-field="name"]').value;
     const prompt = item.querySelector('[data-field="prompt"]').value;
+    const downloadTemplate = item.querySelector('[data-field="downloadTemplate"]').value;
+    const formatPrompt = item.querySelector('[data-field="formatPrompt"]').value;
     return {
       id: `project_${index}`,
       name,
-      prompt
+      prompt,
+      downloadTemplate: downloadTemplate || `【${name}】候选人简历_\${name}`,
+      formatPrompt: formatPrompt || '请整理为标准简历格式，去除联系方式和期望薪资'
     };
   }).filter(p => p.name && p.prompt);
   
@@ -63,7 +85,13 @@ document.addEventListener('DOMContentLoaded', loadConfig);
 document.getElementById('addProject').addEventListener('click', async () => {
   const result = await chrome.storage.sync.get(['projects']);
   const projects = result.projects || [];
-  projects.push({ id: `project_${Date.now()}`, name: '', prompt: '' });
+  projects.push({ 
+    id: `project_${Date.now()}`, 
+    name: '', 
+    prompt: '', 
+    downloadTemplate: '',
+    formatPrompt: ''
+  });
   renderProjects(projects);
 });
 
