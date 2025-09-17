@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Boss直聘AI简历助手",
+  "version": "0.2",
+  "permissions": [
+    "activeTab", 
+    "scripting", 
+    "storage", 
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "*://ai.maxitai.cn/*",
+    "*://*/*"
+  ],
+  "action": {
+    "default_popup": "config.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png", 
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.zhipin.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

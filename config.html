@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 400px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .section {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    .section h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    button {
+      background: #1890ff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    button:hover {
+      background: #1760cc;
+    }
+    .project-item {
+      border: 1px solid #f0f0f0;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+    }
+    .delete-btn {
+      background: #ff4d4f;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Boss直聘AI助手 - 配置</h2>
+  
+  <div class="section">
+    <h3>API配置</h3>
+    <input type="text" id="apiEndpoint" placeholder="API端点">
+    <input type="text" id="apiModel" placeholder="模型名称">
+    <input type="password" id="apiKey" placeholder="API密钥">
+  </div>
+
+  <div class="section">
+    <h3>分析项目</h3>
+    <div id="projectList"></div>
+    <button id="addProject">添加项目</button>
+  </div>
+
+  <div style="text-align: right; margin-top: 20px;">
+    <button id="saveConfig">保存配置</button>
+  </div>
+
+  <script src="config.js"></script>
+</body>
+</html>
