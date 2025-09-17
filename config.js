@@ -1,12 +1,18 @@
+// 默认API配置（不含apiKey，apiKey需用户手动填写）
+const DEFAULT_API_CONFIG = {
+  endpoint: 'https://ai.maxitai.cn/v1/chat/completions',
+  model: 'gpt-5-mini',
+  apiKey: ''
+};
+
 // 加载配置
 async function loadConfig() {
   const result = await chrome.storage.sync.get(['projects', 'apiConfig']);
-  
-  const apiConfig = result.apiConfig || {};
-  document.getElementById('apiEndpoint').value = apiConfig.endpoint || '';
-  document.getElementById('apiModel').value = apiConfig.model || '';
+  const apiConfig = result.apiConfig || DEFAULT_API_CONFIG;
+  document.getElementById('apiEndpoint').value = apiConfig.endpoint || DEFAULT_API_CONFIG.endpoint;
+  document.getElementById('apiModel').value = apiConfig.model || DEFAULT_API_CONFIG.model;
   document.getElementById('apiKey').value = apiConfig.apiKey || '';
-  
+
   const projects = result.projects || [];
   renderProjects(projects);
 }

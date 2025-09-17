@@ -20,7 +20,7 @@ chrome.storage.onChanged.addListener((changes) => {
 
 async function initDefaultConfig() {
   const result = await chrome.storage.sync.get(['projects', 'apiConfig']);
-  
+  // 默认分析项目
   if (!result.projects) {
     await chrome.storage.sync.set({
       projects: [
@@ -30,17 +30,32 @@ async function initDefaultConfig() {
       ]
     });
   }
-  
+
+  // 默认API配置（不包含apiKey，apiKey需用户在options页面填写）
   if (!result.apiConfig) {
-    await chrome.storage.sync.set({
-      apiConfig: {
-        endpoint: '',
-        model: '',
-        apiKey: ''
-      }
-    });
+    // 动态加载 config.js 的默认配置
+    try {
+      const defaultApiConfig = await (async () => {
+        // 由于background.js无法直接import config.js，直接写死默认值
+        return {
+          endpoint: 'https://ai.maxitai.cn/v1/chat/completions',
+          model: 'gpt-5-mini',
+          apiKey: ''
+        };
+      })();
+      await chrome.storage.sync.set({ apiConfig: defaultApiConfig });
+    } catch (e) {
+      // fallback
+      await chrome.storage.sync.set({
+        apiConfig: {
+          endpoint: 'https://ai.maxitai.cn/v1/chat/completions',
+          model: 'gpt-5-mini',
+          apiKey: ''
+        }
+      });
+    }
   }
-  
+
   updateContextMenu();
 }
 
