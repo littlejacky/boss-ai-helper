@@ -1,20 +1,12 @@
-// config.js
-
-// 默认API配置（不含apiKey，apiKey需用户手动填写）
-const DEFAULT_API_CONFIG = {
-  endpoint: 'https://ai.maxitai.cn/v1/chat/completions',
-  model: 'gpt-5-mini',
-  apiKey: ''
-};
-
 // 加载配置
 async function loadConfig() {
   const result = await chrome.storage.sync.get(['projects', 'apiConfig']);
-  const apiConfig = result.apiConfig || DEFAULT_API_CONFIG;
-  document.getElementById('apiEndpoint').value = apiConfig.endpoint || DEFAULT_API_CONFIG.endpoint;
-  document.getElementById('apiModel').value = apiConfig.model || DEFAULT_API_CONFIG.model;
+  
+  const apiConfig = result.apiConfig || {};
+  document.getElementById('apiEndpoint').value = apiConfig.endpoint || '';
+  document.getElementById('apiModel').value = apiConfig.model || '';
   document.getElementById('apiKey').value = apiConfig.apiKey || '';
-
+  
   const projects = result.projects || [];
   renderProjects(projects);
 }
@@ -28,25 +20,15 @@ function renderProjects(projects) {
     const div = document.createElement('div');
     div.className = 'project-item';
     div.innerHTML = `
+      <label>项目名称</label>
+      <input type="text" value="${project.name || ''}" data-field="name" data-index="${index}" placeholder="例如：Java后端岗">
+      <label>分析提示词 (Prompt)</label>
+      <textarea data-field="prompt" data-index="${index}" placeholder="例如：重点评估候选人的并发编程能力和微服务经验。" rows="3">${project.prompt || ''}</textarea>
+      <label>下载文件名格式</label>
+      <input type="text" value="${project.fileNameFormat || ''}" data-field="fileNameFormat" data-index="${index}" placeholder="{name}-{position}-{YYYYMMDD}.txt">
+      <label>下载内容处理指令</label>
+      <textarea data-field="downloadPrompt" data-index="${index}" placeholder="例如：移除简历中的联系方式和姓名。" rows="2">${project.downloadPrompt || ''}</textarea>
       <button class="delete-btn" data-index="${index}">删除</button>
-      <div class="form-group">
-        <label>项目名称</label>
-        <input type="text" data-field="name" value="${project.name || ''}" placeholder="如：数据分析岗位">
-      </div>
-      <div class="form-group">
-        <label>分析提示词</label>
-        <textarea data-field="prompt" rows="3" placeholder="重点评估候选人的...">${project.prompt || ''}</textarea>
-      </div>
-      <div class="form-group">
-        <label>下载文件名模板</label>
-        <input type="text" data-field="downloadTemplate" value="${project.downloadTemplate || ''}" placeholder="【项目名】候选人简历_\${name}_\${experience}年经验">
-        <div class="template-vars">可用变量：\${name}(姓名), \${experience}(经验), \${title}(职位), \${skills}(技能), \${education}(学历), \${age}(年龄)</div>
-      </div>
-      <div class="form-group">
-        <label>简历格式化提示词</label>
-        <textarea data-field="formatPrompt" rows="2" placeholder="请整理为标准简历格式，去除联系方式和期望薪资...">${project.formatPrompt || ''}</textarea>
-        <div class="form-help">用于生成下载版本简历的格式化要求</div>
-      </div>
     `;
     container.appendChild(div);
   });
@@ -62,16 +44,12 @@ async function saveConfig() {
   
   const projectItems = document.querySelectorAll('.project-item');
   const projects = Array.from(projectItems).map((item, index) => {
-    const name = item.querySelector('[data-field="name"]').value;
-    const prompt = item.querySelector('[data-field="prompt"]').value;
-    const downloadTemplate = item.querySelector('[data-field="downloadTemplate"]').value;
-    const formatPrompt = item.querySelector('[data-field="formatPrompt"]').value;
     return {
-      id: `project_${index}`,
-      name,
-      prompt,
-      downloadTemplate: downloadTemplate || `【${name}】候选人简历_\${name}`,
-      formatPrompt: formatPrompt || '请整理为标准简历格式，去除联系方式和期望薪资'
+      id: `project_${Date.now()}_${index}`,
+      name: item.querySelector('[data-field="name"]').value,
+      prompt: item.querySelector('[data-field="prompt"]').value,
+      fileNameFormat: item.querySelector('[data-field="fileNameFormat"]').value,
+      downloadPrompt: item.querySelector('[data-field="downloadPrompt"]').value,
     };
   }).filter(p => p.name && p.prompt);
   
@@ -79,23 +57,65 @@ async function saveConfig() {
   alert('配置已保存');
 }
 
-// 事件监听
+// 导出配置
+async function exportConfig() {
+    const result = await chrome.storage.sync.get(['projects', 'apiConfig']);
+    const configJson = JSON.stringify(result, null, 2);
+    const blob = new Blob([configJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `boss-ai-helper-config-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// 导入配置
+function importConfig(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const config = JSON.parse(e.target.result);
+            if (config.apiConfig && config.projects) {
+                await chrome.storage.sync.set(config);
+                loadConfig(); // 重新加载配置到页面
+                alert('配置导入成功！');
+            } else {
+                alert('配置文件格式不正确。');
+            }
+        } catch (error) {
+            alert('导入失败，文件可能已损坏。');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // 清空，以便再次选择同名文件
+}
+
+
+// --- 事件监听 ---
 document.addEventListener('DOMContentLoaded', loadConfig);
+document.getElementById('saveConfig').addEventListener('click', saveConfig);
+document.getElementById('exportConfigBtn').addEventListener('click', exportConfig);
+document.getElementById('importConfigBtn').addEventListener('click', () => document.getElementById('importConfigFile').click());
+document.getElementById('importConfigFile').addEventListener('change', importConfig);
 
 document.getElementById('addProject').addEventListener('click', async () => {
   const result = await chrome.storage.sync.get(['projects']);
   const projects = result.projects || [];
   projects.push({ 
-    id: `project_${Date.now()}`, 
-    name: '', 
-    prompt: '', 
-    downloadTemplate: '',
-    formatPrompt: ''
+      id: `project_${Date.now()}`, 
+      name: '', 
+      prompt: '', 
+      fileNameFormat: '{name}-{position}-{YYYYMMDD}.html',
+      downloadPrompt: '请将以下简历内容格式化为纯文本，移除所有个人联系方式（电话、邮箱）。'
   });
   renderProjects(projects);
 });
-
-document.getElementById('saveConfig').addEventListener('click', saveConfig);
 
 document.addEventListener('click', async (e) => {
   if (e.target.classList.contains('delete-btn')) {

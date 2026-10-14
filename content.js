@@ -1,386 +1,283 @@
-// content.js
+// =======================================================
+// Boss直聘AI简历助手 - content.js (v0.9 - 打印标题同步最终版)
+// =======================================================
 
-// 获取iframe中的简历内容
-function getResumeFromIframe() {
-  const iframe = document.querySelector('iframe.attachment-box.attachment-iframe');
-  if (!iframe) {
-    return { success: false, error: '未找到简历预览窗口' };
-  }
-  
-  try {
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-    const viewer = iframeDoc.querySelector('#viewer');
-    
-    if (!viewer) {
-      return { success: false, error: '简历内容未加载完成' };
+let currentResumeText = '';
+let currentProjectConfig = {};
+let currentApiConfig = {};
+
+// ... triggerPageRendering, getResumeFromPdfViewer, fetchAnalysisReport, fetchStructuredData 等核心函数保持不变 ...
+async function triggerPageRendering() {
+    try {
+        const iframe = document.querySelector('iframe.attachment-box.attachment-iframe');
+        if (!iframe) return;
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const pages = iframeDoc.querySelectorAll('.page');
+        if (pages.length <= 1) return;
+        const viewerContainer = iframeDoc.getElementById('viewerContainer');
+        if(viewerContainer) {
+            viewerContainer.scrollTop = viewerContainer.scrollHeight;
+            await new Promise(resolve => setTimeout(resolve, 100));
+            viewerContainer.scrollTop = 0;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        for (const page of pages) {
+            page.scrollIntoView({ block: 'center' });
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        if (pages[0]) {
+            pages[0].scrollIntoView();
+        }
+    } catch (e) {
+        console.error('强制渲染简历页面时出错:', e);
     }
-    
-    const resumeText = viewer.innerText.trim();
-    return { 
-      success: true, 
-      text: resumeText,
-      length: resumeText.length
-    };
-  } catch (e) {
-    return { success: false, error: '无法访问简历内容，可能是跨域限制' };
-  }
 }
-
-// 从简历文本中提取关键信息
-function extractResumeInfo(resumeText) {
-  const info = {
-    name: '',
-    experience: '',
-    title: '',
-    skills: '',
-    education: '',
-    age: ''
-  };
-
-  // 简单的正则匹配提取信息
-  const nameMatch = resumeText.match(/姓名[：:]\s*([^\n\r]+)|^([^\n\r]{2,4})\s*[男女]?/m);
-  if (nameMatch) {
-    info.name = (nameMatch[1] || nameMatch[2] || '').trim();
-  }
-
-  const expMatch = resumeText.match(/(\d+)\s*年[工作经验]|工作经验[：:]\s*(\d+)/);
-  if (expMatch) {
-    info.experience = expMatch[1] || expMatch[2] || '';
-  }
-
-  const titleMatch = resumeText.match(/求职意向[：:]\s*([^\n\r]+)|期望职位[：:]\s*([^\n\r]+)/);
-  if (titleMatch) {
-    info.title = (titleMatch[1] || titleMatch[2] || '').trim();
-  }
-
-  const ageMatch = resumeText.match(/年龄[：:]\s*(\d+)|(\d{4})\s*年.*?生/);
-  if (ageMatch) {
-    if (ageMatch[1]) {
-      info.age = ageMatch[1];
-    } else if (ageMatch[2]) {
-      const birthYear = parseInt(ageMatch[2]);
-      info.age = String(new Date().getFullYear() - birthYear);
+function getResumeFromPdfViewer() {
+    try {
+        const iframe = document.querySelector('iframe.attachment-box.attachment-iframe');
+        if (!iframe) return { success: false, error: '未找到简历预览窗口' };
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const pages = iframeDoc.querySelectorAll('.page');
+        if (pages.length === 0) {
+            const viewer = iframeDoc.querySelector('#viewer');
+            if (viewer) return { success: true, text: viewer.innerText.trim() };
+            return { success: false, error: '未找到简历内容容器' };
+        }
+        let fullText = '';
+        pages.forEach((page, pageIndex) => {
+            const textSpans = Array.from(page.querySelectorAll('.textLayer > span'));
+            if (textSpans.length === 0) {
+                 console.warn(`第 ${pageIndex + 1} 页没有找到任何文本内容，可能未被正确渲染。`);
+                 return;
+            };
+            textSpans.sort((a, b) => {
+                const topA = parseFloat(a.style.top);
+                const topB = parseFloat(b.style.top);
+                if (Math.abs(topA - topB) < 2) {
+                    const leftA = parseFloat(a.style.left);
+                    const leftB = parseFloat(b.style.left);
+                    return leftA - leftB;
+                }
+                return topA - topB;
+            });
+            let lastTop = -1;
+            let lineText = '';
+            textSpans.forEach(span => {
+                const currentTop = parseFloat(span.style.top);
+                const fontSize = parseFloat(span.style.fontSize) || 12; 
+                if (lastTop !== -1 && currentTop > lastTop + (fontSize * 0.5)) {
+                    fullText += lineText.trim() + '\n';
+                    lineText = '';
+                }
+                lineText += span.innerText;
+                lastTop = currentTop;
+            });
+            fullText += lineText.trim() + '\n';
+        });
+        const junkPattern = /^[a-f0-9]{30,}/i;
+        const lines = fullText.split('\n').filter(line => line.trim() && !junkPattern.test(line.trim()));
+        return { success: true, text: lines.join('\n').trim() };
+    } catch (e) {
+        return { success: false, error: `提取简历时发生错误: ${e.message}` };
     }
-  }
-
-  const eduMatch = resumeText.match/(本科|硕士|博士|大专|高中|中专)/);
-  if (eduMatch) {
-    info.education = eduMatch[1];
-  }
-
-  // 提取技能关键词
-  const skillKeywords = resumeText.match(/(Excel|Python|SQL|Java|JavaScript|React|Vue|数据分析|项目管理|团队管理)/gi);
-  if (skillKeywords) {
-    info.skills = [...new Set(skillKeywords)].join(',');
-  }
-
-  return info;
 }
-
-// 调用AI分析
-async function analyzeWithAI(resumeText, projectConfig, apiConfig) {
-  const prompt = `
-你是一名专业的招聘顾问，请分析以下候选人的简历。
-
-【重要格式要求】
-请务必按照以下格式输出，先给出最简洁的推荐结论，再进行详细分析：
-
-==== 推荐结论 ====
-推荐结果：[推荐/谨慎推荐/不推荐]
-理由：[用最简洁的1-2句话说明推荐/不推荐的核心原因]
-
-==== 详细分析 ====
-【匹配度评分】
-评分：X/10分
-
-【快速总结】
-• 突出优势：[列出2-3个最突出的优点]
-• 主要不足：[列出1-2个明显的不足]
-
-【深入分析】
-• 优势分析：[展开说明候选人的优势]
-• 不足之处：[详细分析存在的问题]
-• 面试建议：[给出具体的面试重点]
-• 简历改进建议：[如有需要，提出改进建议]
-
-岗位要求：
-${projectConfig.prompt}
-
-候选人简历：
-${resumeText}
-`;
-
+async function fetchAnalysisReport(resumeText, projectConfig, apiConfig) {
+  const prompt = `你是一名资深招聘顾问，请分析以下候选人的简历和岗位要求，输出内容必须严格按照格式：\n\n【快速结论】（简洁总结，不超过5行）\n1. 匹配度评分（1-10分）\n2. 推荐结论（推荐/谨慎推荐/不推荐）\n3. 候选人最突出的2个优点\n4. 候选人最明显的1个不足\n\n请务必只输出【快速结论】，不要输出其他任何内容，要保持简洁。\n\n岗位要求：\n${projectConfig.prompt}\n\n候选人简历：\n${resumeText}`;
   try {
-    const response = await fetch(apiConfig.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.apiKey}`
-      },
-      body: JSON.stringify({
-        model: apiConfig.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`);
-    }
-
+    const response = await fetch(apiConfig.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.apiKey}` }, body: JSON.stringify({ model: apiConfig.model, messages: [{ role: 'user', content: prompt }], temperature: 0.7 }) });
+    if (!response.ok) throw new Error(`API请求失败: ${response.status}`);
     const data = await response.json();
-    const result = data.choices?.[0]?.message?.content || '分析结果为空';
-    
-    // 检查是否为推荐结果
-    const isRecommended = /推荐结果[：:]\s*(推荐|谨慎推荐)/.test(result);
-    
-    return {
-      success: true,
-      result: result,
-      isRecommended: isRecommended
-    };
+    return { success: true, result: data.choices?.[0]?.message?.content || '分析结果为空' };
   } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      isRecommended: false
-    };
+    return { success: false, error: `分析报告获取失败: ${error.message}` };
   }
 }
-
-// 格式化简历并下载
-async function formatAndDownloadResume(resumeText, projectConfig, apiConfig, resumeInfo) {
-  const formatPrompt = `
-${projectConfig.formatPrompt}
-
-请将以下简历整理为标准格式的Word文档内容，要求：
-1. 去除所有联系方式（电话、邮箱、地址等）
-2. 去除期望薪资相关信息
-3. 保持专业的排版格式
-4. 突出与岗位相关的经验和技能
-5. 使用清晰的标题和段落结构
-
-原始简历：
-${resumeText}
-`;
-
-  try {
-    const response = await fetch(apiConfig.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.apiKey}`
-      },
-      body: JSON.stringify({
-        model: apiConfig.model,
-        messages: [{ role: 'user', content: formatPrompt }],
-        temperature: 0.3
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`API请求失败: ${response.status}`);
+async function fetchStructuredData(resumeText, apiConfig) {
+    const prompt = `你是一个精准的数据提取机器人。从以下简历文本中，严格按照指定的JSON格式，提取所需信息。\n对于任何找不到的信息，必须将对应字段的值设为 null。不要编造信息。\n\n输出的JSON格式:\n{\n  "name": "候选人姓名",\n  "gender": "性别 (男/女)",\n  "phone": "联系电话",\n  "email": "电子邮箱",\n  "idNumber": "身份证号",\n  "school": "最高学历的毕业学校 (例如：清华大学)",\n  "graduationDate": "毕业时间 (格式: YYYY-MM)",\n  "degree": "最高学历 (例如：本科, 硕士, 博士, 大专)",\n  "major": "专业名称",\n  "position": "当前或期望的职位",\n  "workExperienceYears": "总工作年限 (仅数字)"\n}\n\n简历文本：\n${resumeText}`;
+    try {
+        const response = await fetch(apiConfig.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.apiKey}` }, body: JSON.stringify({ model: apiConfig.model, messages: [{ role: 'user', content: prompt }], temperature: 0.2, response_format: { "type": "json_object" } }) });
+        if (!response.ok) throw new Error(`API请求失败: ${response.status}`);
+        const data = await response.json();
+        const content = JSON.parse(data.choices?.[0]?.message?.content);
+        return { success: true, result: content };
+    } catch (error) {
+        return { success: false, error: `结构化数据提取失败: ${error.message}` };
     }
-
-    const data = await response.json();
-    const formattedContent = data.choices?.[0]?.message?.content || '格式化失败';
-    
-    // 生成文件名
-    let fileName = projectConfig.downloadTemplate || `【${projectConfig.name}】候选人简历_\${name}`;
-    
-    // 替换模板变量
-    Object.keys(resumeInfo).forEach(key => {
-      const value = resumeInfo[key] || '未知';
-      fileName = fileName.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
-    });
-    
-    // 确保文件名有效
-    fileName = fileName.replace(/[<>:"/\\|?*]/g, '_') + '.txt';
-    
-    // 创建并下载文件
-    const blob = new Blob([formattedContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    return { success: true, fileName };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
 }
-
-// 显示分析结果的浮窗
-function showResultModal(content, projectName, isRecommended = false, resumeText = '', projectConfig = null, apiConfig = null) {
-  // 移除已存在的模态框
+function showResultModal(content, projectName) {
   const existing = document.getElementById('ai-result-modal');
   if (existing) existing.remove();
-
   const modal = document.createElement('div');
   modal.id = 'ai-result-modal';
-  modal.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 650px;
-    max-height: 85vh;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    z-index: 10000;
-    padding: 24px;
-    overflow-y: auto;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  `;
-
-  const downloadButton = isRecommended ? `
-    <button id="download-resume" style="background: #52c41a; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px;">
-      下载简历
-    </button>
-  ` : '';
-
+  modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; max-height: 80vh; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10000; padding: 20px; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;`;
   modal.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 12px;">
-      <h3 style="margin: 0; color: #333; font-size: 18px;">简历分析结果 - ${projectName}</h3>
-      <button id="close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999; padding: 4px;">×</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; flex-shrink: 0;">
+      <h3 style="margin: 0; color: #333;">简历分析结果 - ${projectName}</h3>
+      <button id="close-modal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #666;">×</button>
     </div>
-    <div id="analysis-content" style="white-space: pre-wrap; line-height: 1.8; color: #333; max-height: 55vh; overflow-y: auto; font-size: 14px;">
+    <div id="modal-content" style="white-space: pre-wrap; line-height: 1.6; color: #333; overflow-y: auto; flex-grow: 1;">
       ${content}
     </div>
-    <div style="margin-top: 20px; text-align: right; border-top: 1px solid #f0f0f0; padding-top: 16px;">
-      ${downloadButton}
-      <button id="copy-result" style="background: #1890ff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px;">
-        复制结果
-      </button>
-      <button id="close-modal-btn" style="background: #f5f5f5; color: #666; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-        关闭
-      </button>
+    <div id="modal-footer" style="margin-top: 15px; text-align: right; border-top: 1px solid #eee; padding-top: 10px; flex-shrink: 0;">
+      <button id="download-result" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px; display: none;">下载简历</button>
+      <button id="copy-raw-btn" class="secondary-btn" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px; display: none;">复制原文</button>
+      <button id="copy-analysis-btn" style="background: #1890ff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 8px; display: none;">复制分析</button>
+      <button id="close-modal-btn" style="background: #f0f0f0; color: #666; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">关闭</button>
     </div>
   `;
-
-  // 添加遮罩层
   const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    z-index: 9999;
-  `;
-
+  overlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;`;
   document.body.appendChild(overlay);
   document.body.appendChild(modal);
-
-  // 绑定事件
-  const closeModal = () => {
-    overlay.remove();
-    modal.remove();
-  };
-
+  const closeModal = () => { overlay.remove(); modal.remove(); };
   document.getElementById('close-modal').onclick = closeModal;
   document.getElementById('close-modal-btn').onclick = closeModal;
-  overlay.onclick = closeModal;
-
-  // 复制功能
-  document.getElementById('copy-result').onclick = () => {
-    navigator.clipboard.writeText(content).then(() => {
-      const btn = document.getElementById('copy-result');
-      const originalText = btn.textContent;
-      btn.textContent = '已复制';
-      btn.style.background = '#52c41a';
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.style.background = '#1890ff';
-      }, 1500);
-    });
-  };
-
-  // 下载功能
-  if (isRecommended && document.getElementById('download-resume')) {
-    document.getElementById('download-resume').onclick = async () => {
-      const btn = document.getElementById('download-resume');
-      const originalText = btn.textContent;
-      btn.textContent = '处理中...';
-      btn.disabled = true;
-      btn.style.background = '#95de64';
-
-      try {
-        const resumeInfo = extractResumeInfo(resumeText);
-        const result = await formatAndDownloadResume(resumeText, projectConfig, apiConfig, resumeInfo);
-        
-        if (result.success) {
-          btn.textContent = '下载成功';
-          btn.style.background = '#52c41a';
-          setTimeout(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-            btn.style.background = '#52c41a';
-          }, 2000);
-        } else {
-          throw new Error(result.error);
-        }
-      } catch (error) {
-        alert(`下载失败: ${error.message}`);
-        btn.textContent = originalText;
-        btn.disabled = false;
-        btn.style.background = '#52c41a';
-      }
-    };
-  }
+}
+async function processResumeForDownload(resumeText, downloadPrompt, apiConfig) {
+    if (!downloadPrompt) return { success: true, result: resumeText };
+    try {
+        const response = await fetch(apiConfig.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.apiKey}` }, body: JSON.stringify({ model: apiConfig.model, messages: [ { role: "system", content: "你是一个文本处理助手，根据用户的指令，对提供的文本进行处理和格式化，然后只输出处理后的文本结果，不要有任何额外的解释。" }, { role: 'user', content: `${downloadPrompt}\n\n以下是简历原文：\n${resumeText}` } ], temperature: 0.2 }) });
+        if (!response.ok) throw new Error(`API请求失败: ${response.status}`);
+        const data = await response.json();
+        return { success: true, result: data.choices?.[0]?.message?.content || '处理结果为空' };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
 }
 
-// 监听来自background的消息
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  if (request.action === 'analyzeResume') {
-    // 获取简历内容
-    const resumeResult = getResumeFromIframe();
+
+// 【已更新】创建HTML内容的函数，增加一个新参数`documentTitle`
+function createResumeHtml(processedText, candidateInfo, documentTitle) {
+  const getInfo = (value, suffix = '') => value ? value + suffix : '未提供';
+  return `
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="UTF-8">
+      <title>${documentTitle}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; margin: 0 auto; max-width: 800px; padding: 30px; color: #333; }
+        h1 { font-size: 2.5em; margin-bottom: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .subtitle { font-size: 1.1em; color: #666; margin-top: 5px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 1em; }
+      </style>
+    </head>
+    <body>
+      <h1>${getInfo(candidateInfo.name, '的简历')}</h1>
+      <p class="subtitle">
+        求职意向: ${getInfo(candidateInfo.position)} | 
+        工作经验: ${getInfo(candidateInfo.workExperienceYears, '年')} |
+        学历: ${getInfo(candidateInfo.degree)}
+      </p>
+      <hr>
+      <pre>${processedText}</pre>
+    </body>
+    </html>
+  `;
+}
+
+// 【已更新】下载处理函数，计算出文件名后，将其传递给HTML创建函数
+async function handleDownload(candidateInfo) {
+    const downloadBtn = document.getElementById('download-result');
+    downloadBtn.textContent = '处理中...';
+    downloadBtn.disabled = true;
+
+    const downloadResponse = await processResumeForDownload(currentResumeText, currentProjectConfig.downloadPrompt, currentApiConfig);
     
-    if (!resumeResult.success) {
-      showResultModal(`错误: ${resumeResult.error}`, '分析失败');
-      return;
+    if (downloadResponse.success) {
+        let processedText = downloadResponse.result;
+        processedText = processedText.replace(/\(END\)$/, '').trim();
+
+        let fileName = currentProjectConfig.fileNameFormat || '{name}-resume.html';
+        const date = new Date();
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        fileName = fileName.replace(/{name}/g, candidateInfo.name || 'Unknown').replace(/{position}/g, candidateInfo.position || 'N/A').replace(/{YYYYMMDD}/g, `${yyyy}${mm}${dd}`);
+        
+        // 从完整文件名中，提取出不含后缀的标题
+        const documentTitle = fileName.replace(/\.html$/i, '');
+        
+        const htmlContent = createResumeHtml(processedText, candidateInfo, documentTitle);
+        const blob = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+        
+        chrome.runtime.sendMessage({ action: 'downloadFile', url: url, filename: fileName }, () => { URL.revokeObjectURL(url); });
+    } else {
+        alert(`下载处理失败: ${downloadResponse.error}`);
     }
 
-    // 显示加载状态
-    showResultModal('正在分析简历，请稍候...', 'AI分析中');
+    downloadBtn.textContent = '下载简历';
+    downloadBtn.disabled = false;
+}
+
+// --- 主逻辑 ---
+chrome.runtime.onMessage.addListener(async (request) => {
+  if (request.action === 'analyzeResume') {
+    
+    showResultModal('正在准备简历内容，请稍候...', 'AI分析中');
+    await triggerPageRendering();
+    
+    const resumeResult = getResumeFromPdfViewer();
+    if (!resumeResult.success || !resumeResult.text) {
+      showResultModal(`错误: ${resumeResult.error || '未能提取到任何简历文本。'}`, '分析失败');
+      return;
+    }
+    currentResumeText = resumeResult.text;
+    
+    const copyRawBtn = document.getElementById('copy-raw-btn');
+    if (copyRawBtn) {
+        copyRawBtn.style.display = 'inline-block';
+        copyRawBtn.onclick = () => {
+            navigator.clipboard.writeText(currentResumeText).then(() => alert('简历原文已复制到剪贴板'));
+        };
+    }
+    
+    const modalContent = document.getElementById('modal-content');
+    if (modalContent) modalContent.innerText = '简历准备完毕，正在发送给AI分析...';
 
     try {
-      // 获取配置
       const storage = await chrome.storage.sync.get(['projects', 'apiConfig']);
-      const projects = storage.projects || [];
-      const apiConfig = storage.apiConfig || {};
-
-      if (!apiConfig.apiKey) {
-        showResultModal('请先在插件配置中设置API密钥', '配置错误');
-        return;
-      }
-
-      const project = projects.find(p => p.id === request.projectId);
-      if (!project) {
-        showResultModal('项目配置不存在', '配置错误');
-        return;
-      }
-
-      // 调用AI分析
-      const analysisResult = await analyzeWithAI(resumeResult.text, project, apiConfig);
+      currentApiConfig = storage.apiConfig || {};
+      if (!currentApiConfig.apiKey) { showResultModal('请先在插件配置中设置API密钥', '配置错误'); return; }
+      currentProjectConfig = (storage.projects || []).find(p => p.id === request.projectId);
+      if (!currentProjectConfig) { showResultModal('项目配置不存在', '配置错误'); return; }
       
-      if (analysisResult.success) {
-        showResultModal(
-          analysisResult.result, 
-          project.name, 
-          analysisResult.isRecommended,
-          resumeResult.text,
-          project,
-          apiConfig
-        );
+      const analysisPromise = fetchAnalysisReport(currentResumeText, currentProjectConfig, currentApiConfig);
+      const dataPromise = fetchStructuredData(currentResumeText, currentApiConfig);
+      
+      const analysisResponse = await analysisPromise;
+      if (modalContent) {
+          if (analysisResponse.success) {
+            modalContent.innerText = analysisResponse.result;
+            const copyAnalysisBtn = document.getElementById('copy-analysis-btn');
+            if (copyAnalysisBtn) {
+                copyAnalysisBtn.style.display = 'inline-block';
+                copyAnalysisBtn.onclick = () => { navigator.clipboard.writeText(analysisResponse.result).then(() => alert('分析结果已复制到剪贴板')); };
+            }
+          } else {
+            modalContent.innerText = `分析失败: ${analysisResponse.error}`;
+          }
+      }
+      
+      const dataResponse = await dataPromise;
+      if (dataResponse.success) {
+        const candidateInfo = dataResponse.result;
+        await chrome.storage.local.set({ latestCandidateInfo: candidateInfo });
+        const downloadBtn = document.getElementById('download-result');
+        if (downloadBtn) {
+            downloadBtn.style.display = 'inline-block';
+            downloadBtn.onclick = () => handleDownload(candidateInfo);
+        }
       } else {
-        showResultModal(`分析失败: ${analysisResult.error}`, '错误');
+        const footer = document.getElementById('modal-footer');
+        if(footer){
+            const errorSpan = document.createElement('span');
+            errorSpan.style.color = 'red';
+            errorSpan.style.fontSize = '12px';
+            errorSpan.textContent = '简历信息提取失败，下载/粘贴功能可能不完整。';
+            footer.prepend(errorSpan);
+        }
       }
     } catch (error) {
       showResultModal(`分析过程出错: ${error.message}`, '错误');
